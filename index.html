@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Z33N Hub Scripts</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script defer src="script.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-6">
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold mb-4">Z33N Hub Script Manager</h1>
+
+    <div id="upload-section" class="mb-8 hidden">
+      <h2 class="text-xl font-semibold mb-2">Upload New Script</h2>
+      <input type="text" id="scriptName" placeholder="Script Name" class="w-full p-2 rounded text-black mb-2">
+      <textarea id="scriptContent" rows="10" placeholder="Paste your script here..." class="w-full p-2 rounded text-black mb-2"></textarea>
+      <button onclick="saveScript()" class="bg-green-600 px-4 py-2 rounded">Save Script</button>
+    </div>
+
+    <div class="mb-4">
+      <input type="text" id="searchBox" placeholder="Search scripts..." class="w-full p-2 rounded text-black" oninput="filterScripts()">
+    </div>
+
+    <div id="scriptList"></div>
+  </div>
+
+  <script>
+    const adminCode = "z33n_secure_code_123"; // change this to your own unguessable key
+    const rawBaseURL = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/gh-pages/scripts/"; // update this
+
+    const scripts = {};
+
+    async function loadScripts() {
+      try {
+        const res = await fetch("scripts/index.json");
+        const list = await res.json();
+        for (const name of list) {
+          scripts[name] = `${rawBaseURL}${name}.lua`;
+        }
+        renderScriptList();
+      } catch (err) {
+        document.getElementById("scriptList").innerText = "Failed to load scripts.";
+      }
+    }
+
+    function renderScriptList() {
+      const listDiv = document.getElementById("scriptList");
+      listDiv.innerHTML = "";
+      Object.keys(scripts).forEach(name => {
+        const div = document.createElement("div");
+        div.className = "mb-4 p-4 bg-gray-800 rounded";
+        div.innerHTML = `
+          <h3 class="text-lg font-semibold">${name}</h3>
+          <code class="block bg-black p-2 rounded mt-1 text-green-400">loadstring(game:HttpGet(\"${scripts[name]}\"))()</code>
+        `;
+        listDiv.appendChild(div);
+      });
+    }
+
+    function filterScripts() {
+      const query = document.getElementById("searchBox").value.toLowerCase();
+      const filtered = Object.keys(scripts).filter(name => name.toLowerCase().includes(query));
+      const listDiv = document.getElementById("scriptList");
+      listDiv.innerHTML = "";
+      filtered.forEach(name => {
+        const div = document.createElement("div");
+        div.className = "mb-4 p-4 bg-gray-800 rounded";
+        div.innerHTML = `
+          <h3 class="text-lg font-semibold">${name}</h3>
+          <code class="block bg-black p-2 rounded mt-1 text-green-400">loadstring(game:HttpGet(\"${scripts[name]}\"))()</code>
+        `;
+        listDiv.appendChild(div);
+      });
+    }
+
+    function saveScript() {
+      const name = document.getElementById("scriptName").value.trim();
+      const content = document.getElementById("scriptContent").value;
+      if (!name || !content) return alert("Fill in all fields.");
+      const blob = new Blob([content], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name + ".lua";
+      a.click();
+      alert("Script saved locally. Manually upload it to GitHub Pages.");
+    }
+
+    window.onload = function () {
+      const code = prompt("Enter admin code (or cancel to browse):");
+      if (code === adminCode) {
+        document.getElementById("upload-section").classList.remove("hidden");
+      }
+      loadScripts();
+    };
+  </script>
+</body>
+</html>
