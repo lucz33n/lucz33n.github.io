@@ -4,19 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Z33N Hub Scripts</title>
-  <script defer src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script defer src="script.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-6">
   <div class="max-w-4xl mx-auto">
     <h1 class="text-3xl font-bold mb-4">Z33N Hub Script Manager</h1>
 
-    <div id="upload-section" class="mb-8 hidden">
-      <h2 class="text-xl font-semibold mb-2">Upload New Script</h2>
-      <input type="text" id="scriptName" placeholder="Script Name" class="w-full p-2 rounded text-black mb-2">
-      <textarea id="scriptContent" rows="10" placeholder="Paste your script here..." class="w-full p-2 rounded text-black mb-2"></textarea>
-      <button onclick="saveScript()" class="bg-green-600 px-4 py-2 rounded">Save Script</button>
+    <!-- Admin upload form -->
+    <div id="upload-section" class="mb-10">
+      <h2 class="text-xl font-semibold mb-2">Add New Script</h2>
+      <input id="gameName" type="text" placeholder="Game Name" class="w-full p-2 rounded text-black mb-2">
+      <textarea id="scriptCode" rows="10" placeholder="Paste your script here..." class="w-full p-2 rounded text-black mb-2"></textarea>
+      <button onclick="uploadScript()" class="bg-green-600 px-4 py-2 rounded">Upload to GitHub</button>
+      <p class="text-sm text-gray-400 mt-2">Note: Requires a valid GitHub token stored in memory.</p>
     </div>
 
     <div class="mb-4">
@@ -27,17 +27,19 @@
   </div>
 
   <script>
-    const adminCode = "z33n_secure_code_123"; // change this to your own unguessable key
-    const rawBaseURL = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/gh-pages/scripts/"; // update this
+    const githubUsername = "lucz33n"; // Your GitHub username
+    const repo = "lucz33n.github.io"; // Your GitHub Pages repo
+    const branch = "main";
+    const token = prompt("Enter your GitHub token (only for you):");
 
-    const scripts = {};
+    let scripts = {};
 
     async function loadScripts() {
       try {
         const res = await fetch("scripts/index.json");
         const list = await res.json();
         for (const name of list) {
-          scripts[name] = `${rawBaseURL}${name}.lua`;
+          scripts[name] = `https://raw.githubusercontent.com/${githubUsername}/${repo}/${branch}/scripts/${name}.lua`;
         }
         renderScriptList();
       } catch (err) {
@@ -75,26 +77,54 @@
       });
     }
 
-    function saveScript() {
-      const name = document.getElementById("scriptName").value.trim();
-      const content = document.getElementById("scriptContent").value;
-      if (!name || !content) return alert("Fill in all fields.");
-      const blob = new Blob([content], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name + ".lua";
-      a.click();
-      alert("Script saved locally. Manually upload it to GitHub Pages.");
+    async function uploadScript() {
+      const game = document.getElementById("gameName").value.trim();
+      const code = document.getElementById("scriptCode").value.trim();
+      if (!game || !code || !token) return alert("Fill in everything.");
+
+      const path = `scripts/${game}.lua`;
+      const indexPath = `scripts/index.json`;
+      const getSHA = async (filepath) => {
+        const res = await fetch(`https://api.github.com/repos/${githubUsername}/${repo}/contents/${filepath}`, {
+          headers: { Authorization: `token ${token}` }
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.sha;
+      };
+
+      const updateFile = async (filepath, content, message) => {
+        const sha = await getSHA(filepath);
+        return fetch(`https://api.github.com/repos/${githubUsername}/${repo}/contents/${filepath}`, {
+          method: "PUT",
+          headers: {
+            Authorization: `token ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message,
+            content: btoa(unescape(encodeURIComponent(content))),
+            sha,
+            branch
+          })
+        });
+      };
+
+      // Update .lua file
+      await updateFile(path, code, `Add script: ${game}`);
+      alert("Script uploaded! Now updating index...");
+
+      // Update index.json
+      const indexRes = await fetch(`https://raw.githubusercontent.com/${githubUsername}/${repo}/${branch}/${indexPath}`);
+      let index = await indexRes.json();
+      if (!index.includes(game)) index.push(game);
+      await updateFile(indexPath, JSON.stringify(index, null, 2), `Update index: add ${game}`);
+
+      alert("Index updated!");
+      loadScripts();
     }
 
-    window.onload = function () {
-      const code = prompt("Enter admin code (or cancel to browse):");
-      if (code === adminCode) {
-        document.getElementById("upload-section").classList.remove("hidden");
-      }
-      loadScripts();
-    };
+    window.onload = loadScripts;
   </script>
 </body>
 </html>
